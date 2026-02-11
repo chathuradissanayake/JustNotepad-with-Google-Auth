@@ -10,10 +10,13 @@ services:
     env_file:
       - ./backend/.env
 
-  frontend:
-    build: ./frontend
-    container_name: frontend
-    ports:
-      - "5173:80"
-    depends_on:
-      - backend
+frontend:
+  build: ./frontend
+  container_name: frontend
+  ports:
+    - "80:80"
+  depends_on:
+    - backend
+  volumes:
+    - ./frontend/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    - ./frontend/build:/usr/share/nginx/html
