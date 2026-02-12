@@ -19,4 +19,4 @@ services:
     depends_on:
       - backend
     volumes:
-      - /etc/letsencrypt:/etc/letsencrypt:ro   # ⭐ REQUIRED
+      - /etc/letsencrypt:/etc/letsencrypt:ro   
