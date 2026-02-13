@@ -1,90 +1,145 @@
-import React, { useState, useEffect } from 'react';
-import NoteList from '../components/NoteList';
-import NoteModal from '../components/modals/NoteModal';
-import { getNotes, createNote, updateNote, deleteNote } from '../api/notes';
+import React, { useState, useEffect } from "react";
+import NoteList from "../components/NoteList";
+import NoteModal from "../components/modals/NoteModal";
+import { getNotes, createNote, updateNote, deleteNote } from "../api/notes";
 
-const Notes = () => {
+const Notes = ({ user }) => {
   const [notes, setNotes] = useState([]);
   const [editNote, setEditNote] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
+  // ---------------- FETCH NOTES ----------------
   const fetchNotes = async () => {
-    const data = await getNotes();
-    setNotes(data);
+    try {
+      const data = await getNotes();
+      setNotes(data);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   useEffect(() => {
-    const loadNotes = async () => {
-      const data = await getNotes();
-      setNotes(data);
-    };
-    loadNotes();
+    (async () => {
+      await fetchNotes();
+    })();
   }, []);
 
+  // ---------------- CREATE / UPDATE ----------------
   const handleAdd = async (note) => {
-    if (editNote) {
-      await updateNote(editNote._id, note);
+    try {
+      if (editNote) {
+        await updateNote(editNote._id, note);
+      } else {
+        await createNote(note);
+      }
       setEditNote(null);
-    } else {
-      await createNote(note);
+      setIsModalOpen(false);
+      fetchNotes();
+    } catch (err) {
+      console.error(err);
     }
-    fetchNotes();
   };
 
+  // ---------------- EDIT ----------------
   const handleEdit = (note) => {
     setEditNote(note);
     setIsModalOpen(true);
   };
 
+  // ---------------- DELETE ----------------
   const handleDelete = async (id) => {
     await deleteNote(id);
     fetchNotes();
   };
 
-  const clearEdit = () => setEditNote(null);
-
-  const openCreateModal = () => {
-    setEditNote(null);
-    setIsModalOpen(true);
-  };
-
-  const closeModal = () => {
-    clearEdit();
-    setIsModalOpen(false);
-  };
-
+  // ---------------- LOGOUT ----------------
   const logout = () => {
-  localStorage.removeItem("token");
-  localStorage.removeItem("user");
-  window.location.reload();
-};
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    window.location.href = "/";
+  };
 
-
+  // ---------------- UI ----------------
   return (
-    <div className="min-h-screen bg-linear-to-br from-cyan-50 via-teal-50 to-blue-50">
+    <div className="min-h-screen bg-linear-to-br from-cyan-50 to-sky-50">
       <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-5xl font-bold bg-linear-to-r from-cyan-600 to-teal-600 bg-clip-text text-transparent mb-2">
-            Just Notepad
-          </h1>
-          <p className="text-gray-600 text-lg">Your thoughts, organized beautifully</p>
+
+        {/* ================= HEADER ================= */}
+        <div className="mb-12">
+          
+          {/* Header Container - Flexbox Layout */}
+          <div className="flex items-center justify-between mb-4">
+            
+            {/* Title Section */}
+            <div className="flex-1 text-center md:text-left">
+              <h1 className="text-3xl md:text-5xl font-bold bg-linear-to-r from-cyan-600 to-sky-600 bg-clip-text text-transparent mb-1 md:mb-2">
+                JustNotepad
+              </h1>
+              <p className="text-gray-600 text-sm md:text-lg">
+                Your thoughts, organized beautifully
+              </p>
+            </div>
+
+            {/* ---------- USER PROFILE ---------- */}
+            {user && (
+              <div className="relative ml-4">
+                {/* Profile Picture Button */}
+                <button
+                  onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+                  className="w-10 h-10 md:w-12 md:h-12 rounded-full border-2 border-gray-200 hover:border-cyan-500 transition-all overflow-hidden focus:outline-none focus:ring-2 focus:ring-cyan-500 flex-shrink-0"
+                >
+                  <img
+                    src={user?.picture || `https://ui-avatars.com/api/?name=${user?.name}`}
+                    alt="profile"
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                </button>
+
+                {/* Dropdown Menu */}
+                {isProfileMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden z-50">
+                    <div className="p-4 border-b border-gray-100">
+                      <p className="text-sm font-semibold text-gray-800">{user?.name}</p>
+                      <p className="text-xs text-gray-500 mt-1 break-all">{user?.email}</p>
+                    </div>
+                    <button
+                      onClick={logout}
+                      className="w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      Logout
+                    </button>
+                  </div>
+                )}
+
+                {/* Click outside to close */}
+                {isProfileMenuOpen && (
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setIsProfileMenuOpen(false)}
+                  />
+                )}
+              </div>
+            )}
+          </div>
         </div>
-        <button onClick={logout} className="absolute top-4 right-4">
-          Logout
-        </button>
 
-
+        {/* ================= MODAL ================= */}
         <NoteModal
           isOpen={isModalOpen}
-          onClose={closeModal}
+          onClose={() => setIsModalOpen(false)}
           onSubmit={handleAdd}
           noteToEdit={editNote}
-          clearEdit={clearEdit}
           onDelete={handleDelete}
         />
 
-        <NoteList notes={notes} onEdit={handleEdit} onCreate={openCreateModal} />
+        {/* ================= NOTES ================= */}
+        <NoteList
+          notes={notes}
+          onEdit={handleEdit}
+          onCreate={() => setIsModalOpen(true)}
+        />
       </div>
     </div>
   );
