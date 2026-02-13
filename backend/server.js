@@ -9,7 +9,11 @@ app.use(express.json());
 
 // Routes
 const notesRoutes = require('./routes/noteRoutes.js');
+const authRoutes = require('./routes/authRoutes');
+
+
 app.use('/api/notes', notesRoutes);
+app.use('/api/auth', authRoutes);
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI)
