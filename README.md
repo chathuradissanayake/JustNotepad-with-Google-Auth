@@ -10,7 +10,7 @@
   
   *Simple notes, beautifully organized*
   
-  [Live Demo](https://justnotepad.chatd.dev) · [Report Bug](mailto:chathura@justnotepad.chatd.dev) · [Request Feature](mailto:chathura@justnotepad.chatd.dev)
+  [Live Demo](https://justnotepad.chatd.dev) · [Report Bug](mailto:chatd.dev@gmail.com) · [Request Feature](mailto:chatd.dev@gmail.com)
   
 </div>
 
@@ -67,7 +67,7 @@
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/justnotepad.git
+   git clone https://github.com/chathuradissanayake/JustNotepad-with-Google-Auth.git
    cd justnotepad
    ```
 
@@ -154,7 +154,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📧 Contact
 
-**Chathura** - [chathurakosala6@gmail.com](mailto:chathurakosala6@gmail.com)
+**Chathura** - [chatd.dev@gmail.com](mailto:chatd.dev@gmail.com)
 
 **Project Link** - [https://github.com/chathuradissanayake/JustNotepad-with-Google-Auth](https://github.com/chathuradissanayake/JustNotepad-with-Google-Auth)
 
