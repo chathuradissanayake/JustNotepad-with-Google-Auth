@@ -3,7 +3,7 @@ import NoteList from '../components/NoteList';
 import NoteModal from '../components/modals/NoteModal';
 import { getNotes, createNote, updateNote, deleteNote } from '../api/notes';
 
-const Home = () => {
+const Notes = () => {
   const [notes, setNotes] = useState([]);
   const [editNote, setEditNote] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -79,4 +79,4 @@ const Home = () => {
   );
 };
 
-export default Home;
+export default Notes;
