@@ -26,12 +26,12 @@ const Notes = ({ user }) => {
   }, []);
 
   // Create or update note
-  const handleAdd = async (note) => {
+  const handleAdd = async (note, images = []) => {
     try {
       if (editNote) {
         await updateNote(editNote._id, note);
       } else {
-        await createNote(note);
+        await createNote(note, images);
       }
       setEditNote(null);
       setIsModalOpen(false);
