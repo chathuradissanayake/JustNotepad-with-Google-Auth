@@ -10,6 +10,16 @@ const authHeaders = () => {
   };
 };
 
+// helper for multipart form data headers
+const authHeadersMultipart = () => {
+  const token = localStorage.getItem("token");
+
+  return {
+    Authorization: `Bearer ${token}`,
+    // Don't set Content-Type, browser will set it with boundary
+  };
+};
+
 // Get all notes
 export const getNotes = async () => {
   const res = await fetch(API_URL, {
@@ -26,12 +36,21 @@ export const getNote = async (id) => {
   return res.json();
 };
 
-// Create note
-export const createNote = async (note) => {
+// Create note with images
+export const createNote = async (note, images = []) => {
+  const formData = new FormData();
+  formData.append("subject", note.subject);
+  formData.append("body", note.body);
+
+  // Append images
+  images.forEach((image) => {
+    formData.append("images", image);
+  });
+
   const res = await fetch(API_URL, {
     method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify(note),
+    headers: authHeadersMultipart(),
+    body: formData,
   });
   return res.json();
 };
@@ -51,6 +70,16 @@ export const deleteNote = async (id) => {
   const res = await fetch(`${API_URL}/${id}`, {
     method: "DELETE",
     headers: authHeaders(),
+  });
+  return res.json();
+};
+
+// Remove image from note
+export const removeImage = async (noteId, imageUrl) => {
+  const res = await fetch(`${API_URL}/${noteId}/image`, {
+    method: "DELETE",
+    headers: authHeaders(),
+    body: JSON.stringify({ imageUrl }),
   });
   return res.json();
 };
