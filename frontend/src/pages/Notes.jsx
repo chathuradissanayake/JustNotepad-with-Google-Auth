@@ -6,31 +6,30 @@ import AdminNoteModal from "../components/admin-notes/AdminNoteModal";
 import { getNotes, createNote, updateNote, deleteNote } from "../api/notes";
 import { getAllNotes as getAdminNotes, deleteAnyNote, updateAnyNote } from "../api/admin";
 
+const useDebounced = (value, delay = 250) => {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
+};
+
 const Notes = ({ user }) => {
   const [notes, setNotes] = useState([]);
   const [editNote, setEditNote] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
-  // search
+  // search + debounce
   const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search.trim()), 250);
-    return () => clearTimeout(t);
-  }, [search]);
+  const debouncedSearch = useDebounced(search);
 
-  // admin email filter: dropdown + free text search (admin mode only)
-  const [emailFilter, setEmailFilter] = useState("all"); // "all" or exact email
-  const [emailQuery, setEmailQuery] = useState(""); // partial email search for dropdown filtering
+  // admin email filter
+  const [emailFilter, setEmailFilter] = useState("all");
+  const [emailQuery, setEmailQuery] = useState("");
 
-  // derive unique emails from notes for dropdown
-  const emailOptions = useMemo(() => {
-    const set = new Set(notes.map((n) => n.userEmail).filter(Boolean));
-    return Array.from(set).sort();
-  }, [notes]);
-
-  // decode role once from token
+  // token / role
   const token = user?.token ?? null;
   const isAdmin = useMemo(() => {
     try {
@@ -42,36 +41,25 @@ const Notes = ({ user }) => {
     }
   }, [token]);
 
-  // admin mode persisted (only for admins)
-  const [isAdminMode, setIsAdminMode] = useState(() => {
-    return localStorage.getItem("adminMode") === "true";
-  });
-
-  // sync adminMode to localStorage; reset if not admin
+  // admin mode persistence
+  const [isAdminMode, setIsAdminMode] = useState(() => localStorage.getItem("adminMode") === "true");
   useEffect(() => {
-    if (isAdmin) {
-      localStorage.setItem("adminMode", String(isAdminMode));
-    } else {
-      localStorage.removeItem("adminMode");
-    }
+    if (isAdmin) localStorage.setItem("adminMode", String(isAdminMode));
+    else localStorage.removeItem("adminMode");
   }, [isAdmin, isAdminMode]);
 
   const toggleAdminMode = useCallback(() => {
-    setIsAdminMode((prev) => {
-      const next = !prev;
-      if (!isAdmin) return false;
-      return next;
-    });
+    if (!isAdmin) return;
+    setIsAdminMode((v) => !v);
   }, [isAdmin]);
 
-  // derive effective admin mode (non-admins are never in admin mode)
-  const effectiveIsAdminMode = isAdmin && isAdminMode;
-  const inAdminMode = effectiveIsAdminMode;
+  const inAdminMode = isAdmin && isAdminMode;
 
-  // normalize API response to array
+  // helpers
   const toArray = (data) => (Array.isArray(data) ? data : data?.notes ?? []);
+  const noteId = (n) => n._id || n.id;
 
-  // fetch notes based on mode
+  // fetch notes (single, reusable)
   const fetchNotes = useCallback(async () => {
     try {
       const data = inAdminMode ? await getAdminNotes() : await getNotes();
@@ -94,21 +82,17 @@ const Notes = ({ user }) => {
       }
     };
     load();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [inAdminMode]);
 
-  // get note id helper
-  const noteId = (note) => note._id || note.id;
-
-  // create or update
+  // create/update/delete handlers
   const handleSave = useCallback(
     async (payload) => {
       try {
         if (editNote) {
           const id = noteId(editNote);
-          inAdminMode ? await updateAnyNote(id, payload) : await updateNote(id, payload);
+          if (inAdminMode) await updateAnyNote(id, payload);
+          else await updateNote(id, payload);
         } else {
           await createNote(payload);
         }
@@ -122,17 +106,16 @@ const Notes = ({ user }) => {
     [editNote, inAdminMode, fetchNotes]
   );
 
-  // edit
   const handleEdit = useCallback((note) => {
     setEditNote(note);
     setIsModalOpen(true);
   }, []);
 
-  // delete
   const handleDelete = useCallback(
     async (id) => {
       try {
-        inAdminMode ? await deleteAnyNote(id) : await deleteNote(id);
+        if (inAdminMode) await deleteAnyNote(id);
+        else await deleteNote(id);
         await fetchNotes();
       } catch (err) {
         console.error("Failed to delete note:", err);
@@ -151,47 +134,44 @@ const Notes = ({ user }) => {
     window.location.href = "/";
   }, []);
 
-  // filter notes client-side by subject, body or date (created/updated)
+  // email options derived from current notes
+  const emailOptions = useMemo(() => {
+    return Array.from(new Set(notes.map((n) => n.userEmail).filter(Boolean))).sort();
+  }, [notes]);
+
+  // client-side filtering: subject/body/date + admin email filters
   const displayedNotes = useMemo(() => {
     if (!debouncedSearch && !emailQuery && emailFilter === "all") return notes;
-    const q = debouncedSearch.toLowerCase();
-    const eq = emailQuery.trim().toLowerCase();
+    const q = (debouncedSearch || "").toLowerCase();
+    const eq = (emailQuery || "").trim().toLowerCase();
 
     return notes.filter((n) => {
-      // email filters (admin only)
       if (inAdminMode) {
-        if (emailFilter !== "all" && (n.userEmail || "").toLowerCase() !== emailFilter.toLowerCase()) {
-          return false;
-        }
-        if (eq && !(n.userEmail || "").toLowerCase().includes(eq)) {
-          return false;
-        }
+        if (emailFilter !== "all" && (n.userEmail || "").toLowerCase() !== emailFilter.toLowerCase()) return false;
+        if (eq && !(n.userEmail || "").toLowerCase().includes(eq)) return false;
       }
 
-      if (q) {
-        if (n.subject?.toLowerCase().includes(q)) return true;
-        if (n.body?.toLowerCase().includes(q)) return true;
-        const created = n.createdAt ? new Date(n.createdAt).toLocaleString() : "";
-        const updated = n.updatedAt ? new Date(n.updatedAt).toLocaleString() : "";
-        if (created.toLowerCase().includes(q) || updated.toLowerCase().includes(q)) return true;
-        // also allow ISO / YYYY-MM-DD searches
-        const createdIso = n.createdAt ? new Date(n.createdAt).toISOString().split("T")[0] : "";
-        const updatedIso = n.updatedAt ? new Date(n.updatedAt).toISOString().split("T")[0] : "";
-        if (createdIso.includes(q) || updatedIso.includes(q)) return true;
-        return false;
-      }
+      if (!q) return true;
 
-      // if only email filters are applied and passed above, keep the note
-      return true;
+      if (n.subject?.toLowerCase().includes(q)) return true;
+      if (n.body?.toLowerCase().includes(q)) return true;
+
+      const created = n.createdAt ? new Date(n.createdAt).toLocaleString() : "";
+      const updated = n.updatedAt ? new Date(n.updatedAt).toLocaleString() : "";
+      if (created.toLowerCase().includes(q) || updated.toLowerCase().includes(q)) return true;
+
+      const createdIso = n.createdAt ? new Date(n.createdAt).toISOString().split("T")[0] : "";
+      const updatedIso = n.updatedAt ? new Date(n.updatedAt).toISOString().split("T")[0] : "";
+      if (createdIso.includes(q) || updatedIso.includes(q)) return true;
+
+      return false;
     });
   }, [notes, debouncedSearch, inAdminMode, emailFilter, emailQuery]);
 
   return (
     <div
       className={`min-h-screen ${
-        inAdminMode
-          ? "bg-linear-to-br from-red-50 via-purple-50 to-purple-100"
-          : "bg-linear-to-br from-cyan-50 to-sky-50"
+        inAdminMode ? "bg-linear-to-br from-red-50 via-purple-50 to-purple-100" : "bg-linear-to-br from-cyan-50 to-sky-50"
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 py-8">
@@ -205,26 +185,18 @@ const Notes = ({ user }) => {
                     inAdminMode ? "from-red-400 to-purple-400" : "from-cyan-400 to-sky-400"
                   }`}
                 >
-                  JustNotepad {isAdmin && <span className="inline-block px-2 py-1 text-xs text-red-400 rounded-full">Admin</span>}
+                  JustNotepad {isAdmin && <span className={`inline-block py-1 text-xs ${inAdminMode ? 'text-red-400' : 'text-cyan-400'} rounded-full`}>Admin</span>}
                 </h1>
-                <p className="text-gray-600 font-light text-md">
-                  {inAdminMode ? "Admin Dashboard | All Notes" : "Your thoughts, organized beautifully"}
-                </p>
+                <p className="text-gray-600 font-light text-md">{inAdminMode ? "Admin Dashboard | All Notes" : "Your thoughts, organized beautifully"}</p>
               </div>
 
-              {/* Right controls: desktop shows search + profile, mobile shows only profile (keeps picture to the right of title) */}
               <div className="flex items-center gap-4 ml-4">
-                {/* Desktop search (hidden on mobile) */}
+                {/* Desktop search */}
                 <div className={`hidden sm:flex items-center bg-white rounded-lg border ${inAdminMode ? "border-red-200" : "border-cyan-200"} px-3 py-2 w-72`}>
                   <svg className="w-4 h-4 text-gray-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
                   </svg>
-                  <input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search subject, body or date"
-                    className="w-full text-sm outline-none placeholder-gray-400"
-                  />
+                  <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search subject, body or date" className="w-full text-sm outline-none placeholder-gray-400" />
                   {search && (
                     <button onClick={() => setSearch("")} className="ml-2 text-gray-500 text-xs">
                       Clear
@@ -232,21 +204,11 @@ const Notes = ({ user }) => {
                   )}
                 </div>
 
-                {/* Admin email filter: dropdown + quick search (desktop only, shown only in admin mode) */}
+                {/* Admin email filter (desktop) */}
                 {inAdminMode && (
-                  <div className="hidden sm:flex items-center  gap-2 ml-2">
-                    <input
-                      type="text"
-                      value={emailQuery}
-                      onChange={(e) => setEmailQuery(e.target.value)}
-                      placeholder="Filter emails..."
-                      className="text-sm px-2 py-2 border border-red-200 bg-white rounded-md w-40 placeholder-gray-400"
-                    />
-                    <select
-                      value={emailFilter}
-                      onChange={(e) => setEmailFilter(e.target.value)}
-                      className="text-sm px-2 py-2 text-gray-700 border border-red-200 rounded-md bg-white"
-                    >
+                  <div className="hidden sm:flex items-center gap-2 ml-2">
+                    <input type="text" value={emailQuery} onChange={(e) => setEmailQuery(e.target.value)} placeholder="Filter emails..." className="text-sm px-2 py-2 border border-red-200 bg-white rounded-md w-40 placeholder-gray-400" />
+                    <select value={emailFilter} onChange={(e) => setEmailFilter(e.target.value)} className="text-sm px-2 py-2 text-gray-700 border border-red-200 rounded-md bg-white">
                       <option value="all">All users</option>
                       {emailOptions.map((em) => (
                         <option key={em} value={em}>
@@ -257,14 +219,10 @@ const Notes = ({ user }) => {
                   </div>
                 )}
 
-                {/* Profile picture (always visible and stays to the right of title on mobile) */}
+                {/* Profile picture */}
                 {user && (
                   <div className="relative">
-                    <button
-                      onClick={() => setIsProfileMenuOpen((prev) => !prev)}
-                      className="w-10 h-10 md:w-12 md:h-12 rounded-full border-2 border-gray-200 hover:border-red-500 transition-all overflow-hidden focus:outline-none focus:ring-2 focus:ring-red-500"
-                      aria-label="Profile menu"
-                    >
+                    <button onClick={() => setIsProfileMenuOpen((p) => !p)} className="w-10 h-10 md:w-12 md:h-12 rounded-full border-2 border-gray-200 hover:border-red-500 transition-all overflow-hidden focus:outline-none focus:ring-2 focus:ring-red-500" aria-label="Profile menu">
                       <img src={user.picture || `https://ui-avatars.com/api/?name=${user.name}`} alt={user.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     </button>
 
@@ -275,18 +233,13 @@ const Notes = ({ user }) => {
                             <p className="text-sm font-semibold text-gray-800">{user.name}</p>
                             <p className="text-xs text-gray-500 mt-1 break-all">{user.email}</p>
 
-                            {/* Admin toggle inside profile */}
                             {isAdmin && (
                               <div className="mt-3 flex items-center justify-between gap-2">
                                 <div>
                                   <p className="text-xs text-gray-500">Admin mode</p>
                                   <p className="text-[11px] text-gray-400">View and manage all notes</p>
                                 </div>
-                                <button
-                                  onClick={toggleAdminMode}
-                                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isAdminMode ? "bg-red-400" : "bg-gray-300"}`}
-                                  aria-label="Toggle admin mode"
-                                >
+                                <button onClick={toggleAdminMode} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isAdminMode ? "bg-red-400" : "bg-gray-300"}`} aria-label="Toggle admin mode">
                                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isAdminMode ? "translate-x-6" : "translate-x-1"}`} />
                                 </button>
                               </div>
@@ -311,12 +264,7 @@ const Notes = ({ user }) => {
                 <svg className="w-4 h-4 text-gray-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
                 </svg>
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search subject, body or date"
-                  className="w-full text-sm outline-none placeholder-gray-400"
-                />
+                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search subject, body or date" className="w-full text-sm outline-none placeholder-gray-400" />
                 {search && (
                   <button onClick={() => setSearch("")} className="ml-2 text-gray-500 text-xs">
                     Clear
@@ -324,21 +272,11 @@ const Notes = ({ user }) => {
                 )}
               </div>
 
-              {/* Mobile admin email filter (below search) */}
+              {/* Mobile admin email filter */}
               {inAdminMode && (
                 <div className="sm:hidden mt-3 flex gap-2">
-                  <input
-                    type="text"
-                    value={emailQuery}
-                    onChange={(e) => setEmailQuery(e.target.value)}
-                    placeholder="Filter emails..."
-                    className="text-sm px-2 py-2 border border-red-200 bg-white rounded-md w-full placeholder-gray-400"
-                  />
-                  <select
-                    value={emailFilter}
-                    onChange={(e) => setEmailFilter(e.target.value)}
-                    className="text-sm px-2 py-2 text-gray-700 border border-red-200 rounded-md bg-white"
-                  >
+                  <input type="text" value={emailQuery} onChange={(e) => setEmailQuery(e.target.value)} placeholder="Filter emails..." className="text-sm px-2 py-2 border border-red-200 bg-white rounded-md w-full placeholder-gray-400" />
+                  <select value={emailFilter} onChange={(e) => setEmailFilter(e.target.value)} className="text-sm px-2 py-2 text-gray-700 border border-red-200 rounded-md bg-white">
                     <option value="all">All users</option>
                     {emailOptions.map((em) => (
                       <option key={em} value={em}>
