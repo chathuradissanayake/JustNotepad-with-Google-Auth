@@ -9,17 +9,16 @@ const googleLogin = async (req, res) => {
   try {
     const { token } = req.body;
 
-    // 1️⃣ verify token with Google
+    // 1️⃣ Verify token with Google
     const ticket = await client.verifyIdToken({
       idToken: token,
       audience: process.env.GOOGLE_CLIENT_ID,
     });
 
     const payload = ticket.getPayload();
-
     const { sub, email, name, picture } = payload;
 
-    // 2️⃣ find or create user
+    // 2️⃣ Find or create user
     let user = await User.findOne({ email });
 
     if (!user) {
@@ -28,25 +27,25 @@ const googleLogin = async (req, res) => {
         email,
         name,
         picture,
-        isAdmin: false
+        role: "user", // ✅ default role
       });
     }
 
-    // 3️⃣ create app JWT
+    // 3️⃣ Create app JWT (VERY IMPORTANT)
     const appToken = jwt.sign(
       {
         id: user._id,
         email: user.email,
-        isAdmin: user.isAdmin
+        role: user.role, // ✅ must include role
       },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
 
-    // 4️⃣ send back to frontend
+    // 4️⃣ Send back to frontend
     res.json({
       token: appToken,
-      user
+      user,
     });
 
   } catch (error) {
