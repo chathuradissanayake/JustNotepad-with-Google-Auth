@@ -2,18 +2,29 @@ const Note = require("../models/Note");
 const User = require("../models/User");
 const mongoose = require("mongoose");
 
-// 🔹 Get all notes (admin only) — support pagination
+// Get all notes (admin only) — support pagination, sort by latest updatedAt else createdAt
 exports.getAllNotes = async (req, res) => {
   try {
-    const page = Math.max(1, parseInt(req.query.page || "1"));
-    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit || "50")));
+    const page = Math.max(1, parseInt(req.query.page || "1", 10));
+    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit || "50", 10)));
     const skip = (page - 1) * limit;
 
+    // use aggregation to compute a 'recent' field (updatedAt if present and newer, else createdAt)
+    const pipeline = [
+      {
+        $addFields: {
+          recent: {
+            $cond: [{ $gt: ["$updatedAt", "$createdAt"] }, "$updatedAt", "$createdAt"],
+          },
+        },
+      },
+      { $sort: { recent: -1 } },
+      { $skip: skip },
+      { $limit: limit },
+    ];
+
     const [notes, total] = await Promise.all([
-      Note.find()
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit),
+      Note.aggregate(pipeline),
       Note.countDocuments(),
     ]);
 
@@ -24,7 +35,7 @@ exports.getAllNotes = async (req, res) => {
   }
 };
 
-// 🔹 Delete any note (with id validation)
+// Delete any note (with id validation)
 exports.deleteAnyNote = async (req, res) => {
   try {
     const id = req.params.id;
@@ -45,7 +56,7 @@ exports.deleteAnyNote = async (req, res) => {
   }
 };
 
-// 🔹 Update any note (admin)
+// Update any note (admin)
 exports.updateAnyNote = async (req, res) => {
   try {
     const id = req.params.id;
@@ -66,7 +77,7 @@ exports.updateAnyNote = async (req, res) => {
   }
 };
 
-// 🔹 Get all users
+// Get all users
 exports.getAllUsers = async (req, res) => {
   try {
     const users = await User.find().select("-__v");
@@ -77,7 +88,7 @@ exports.getAllUsers = async (req, res) => {
   }
 };
 
-// 🔹 Update user role (promote/demote)
+// Update user role (promote/demote)
 exports.updateUserRole = async (req, res) => {
   try {
     const { role } = req.body;
@@ -98,7 +109,7 @@ exports.updateUserRole = async (req, res) => {
   }
 };
 
-// 🔹 Delete user
+// Delete user
 exports.deleteUser = async (req, res) => {
   try {
     await User.findByIdAndDelete(req.params.id);

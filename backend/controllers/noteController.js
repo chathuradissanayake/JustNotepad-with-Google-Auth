@@ -1,12 +1,20 @@
 const Note = require('../models/Note.js');
 
 
-// GET all notes (ONLY logged-in user's notes)
+// GET all notes (ONLY logged-in user's notes) — sort by updatedAt if newer else createdAt
 const getNotes = async (req, res) => {
   try {
-    const notes = await Note
-      .find({ userEmail: req.user.email })   // 🔥 filter by owner
-      .sort({ createdAt: -1 });
+    const notes = await Note.aggregate([
+      { $match: { userEmail: req.user.email } },
+      {
+        $addFields: {
+          recent: {
+            $cond: [{ $gt: ["$updatedAt", "$createdAt"] }, "$updatedAt", "$createdAt"],
+          },
+        },
+      },
+      { $sort: { recent: -1 } },
+    ]);
 
     res.json(notes);
   } catch (error) {
