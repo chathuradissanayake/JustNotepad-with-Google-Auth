@@ -18,6 +18,13 @@ const AdminNoteModal = ({ isOpen, onClose, onSubmit, noteToEdit, clearEdit, onDe
     }
   }, [noteToEdit]);
 
+  // timestamp (show updated if newer else created)
+  const created = noteToEdit?.createdAt ? new Date(noteToEdit.createdAt) : null;
+  const updated = noteToEdit?.updatedAt ? new Date(noteToEdit.updatedAt) : null;
+  const isUpdated = updated && created && updated.getTime() > created.getTime();
+  const tsLabel = isUpdated ? "Updated" : "Created";
+  const tsTime = (isUpdated ? updated : created)?.toLocaleString();
+
   const handleClose = useCallback(() => {
     clearEdit?.();
     setForm(initialForm);
@@ -78,6 +85,11 @@ const AdminNoteModal = ({ isOpen, onClose, onSubmit, noteToEdit, clearEdit, onDe
               {noteToEdit?.userEmail && (
                 <p className="text-xs text-cyan-100 mt-1 truncate max-w-lg">
                   User: {noteToEdit.userEmail}
+                </p>
+              )}
+              {tsTime && (
+                <p className="text-xs text-cyan-100 mt-1">
+                  {tsLabel}: {tsTime}
                 </p>
               )}
             </div>
