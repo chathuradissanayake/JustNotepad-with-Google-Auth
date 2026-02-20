@@ -58,12 +58,19 @@ const NoteModal = ({ isOpen, onClose, onSubmit, noteToEdit, clearEdit, onDelete 
 
   const handleDelete = useCallback(() => {
     if (window.confirm('Are you sure you want to delete this note?')) {
-      onDelete?.(noteToEdit._id);
+      onDelete?.(noteToEdit?._id);
       handleClose();
     }
   }, [noteToEdit, onDelete, handleClose]);
 
   const isDisabled = !form.subject.trim() || !form.body.trim();
+
+  // derived timestamp info for display
+  const created = noteToEdit?.createdAt ? new Date(noteToEdit.createdAt) : null;
+  const updated = noteToEdit?.updatedAt ? new Date(noteToEdit.updatedAt) : null;
+  const isUpdated = updated && created && updated.getTime() > created.getTime();
+  const tsLabel = isUpdated ? 'Updated' : 'Created';
+  const tsTime = (isUpdated ? updated : created)?.toLocaleString();
 
   if (!isOpen) return null;
 
@@ -76,10 +83,15 @@ const NoteModal = ({ isOpen, onClose, onSubmit, noteToEdit, clearEdit, onDelete 
         <div className="bg-linear-to-br from-cyan-50 to-teal-50 h-full rounded-none md:rounded-lg overflow-hidden flex flex-col">
           {/* Header with realistic notepad design */}
           <div className="bg-linear-to-r from-cyan-400 to-sky-400 px-4 md:px-6 py-4 flex items-center justify-between border-b-4 border-sky-500">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col">
               <h2 className="text-lg md:text-xl font-semibold text-white">
                 {noteToEdit ? 'Edit Note' : 'New Note'}
               </h2>
+              {tsTime && (
+                <p className="text-xs text-cyan-100 mt-1">
+                  {tsLabel}: {tsTime}
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-2">
               {noteToEdit && (
@@ -87,6 +99,7 @@ const NoteModal = ({ isOpen, onClose, onSubmit, noteToEdit, clearEdit, onDelete 
                   <button
                     onClick={() => setShowMenu(!showMenu)}
                     className="text-white hover:text-cyan-200 transition-colors p-1"
+                    aria-label="more"
                   >
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
@@ -110,6 +123,7 @@ const NoteModal = ({ isOpen, onClose, onSubmit, noteToEdit, clearEdit, onDelete 
               <button
                 onClick={handleClose}
                 className="text-white hover:text-cyan-200 transition-colors"
+                aria-label="close"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
