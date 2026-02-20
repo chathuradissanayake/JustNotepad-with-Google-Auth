@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import NoteList from "../components/NoteList";
-import NoteModal from "../components/modals/NoteModal";
+import NoteModal from "../components/NoteModal";
 import AdminNoteList from "../components/admin-notes/AdminNoteList";
 import AdminNoteModal from "../components/admin-notes/AdminNoteModal";
 import { getNotes, createNote, updateNote, deleteNote } from "../api/notes";
